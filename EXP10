@@ -1,0 +1,37 @@
+package com.example.exp3;
+
+import android.app.Activity;
+import android.media.*;
+import android.os.Bundle;
+import android.widget.Button;
+
+public class MainActivity extends Activity {
+
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        Button btn = new Button(this);
+        btn.setText("Play Synth");
+        setContentView(btn);
+        btn.setOnClickListener(v -> new Thread(this::play).start());
+    }
+
+    void play() {
+        int rate = 44100;
+        double[] notes = {261.6, 293.7, 329.6, 349.2, 392.0, 440.0, 493.9, 523.3}; // C D E F G A B C (Hz)
+
+        AudioTrack track = new AudioTrack(AudioManager.STREAM_MUSIC, rate,
+                AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                rate * 2, AudioTrack.MODE_STREAM);
+        track.play();
+
+        for (double f : notes) {
+            short[] buf = new short[rate / 2];
+            for (int i = 0; i < buf.length; i++)
+                buf[i] = (short) (Math.sin(2 * Math.PI * f * i / rate) * 12000);
+            track.write(buf, 0, buf.length);
+        }
+        track.stop();
+        track.release();
+    }
+}
