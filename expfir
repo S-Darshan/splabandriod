@@ -1,0 +1,86 @@
+clc; clear; close all;
+
+% STEP 1: Define sampling frequency and desired FIR response
+fs = 8000;
+f = [0 600 1000 1400 2000 4000];
+a = [1.25 2 1 0.25 0.1 0];
+order = 31;
+
+% Normalize frequency and design FIR filter
+fn = f/(fs/2);
+b = fir2(order,fn,a);
+
+% STEP 2: Generate chirp input
+ns = 256;
+t = (0:ns-1)/fs;
+x = chirp(t,0,ns/fs,fs/2);
+
+% STEP 3: Apply FIR filter
+y = filter(b,1,x);
+Y = fft(y);
+
+% Find minimum coefficient word length
+intgr = 2;
+
+for bits = 4:16
+
+    % Calculate fractional bits
+    frac_bits = bits-intgr-1;
+
+    % Quantize coefficients without Fixed-Point Designer
+    scale = 2^frac_bits;
+    qb = round(b*scale)/scale;
+
+    % Filter using quantized coefficients
+    yq = filter(qb,1,x);
+    Yq = fft(yq);
+
+    % Calculate normalized error
+    error = max(abs(Yq-Y))/max(abs(Y));
+
+    % Stop when error is below 5%
+    if error < 0.05
+        min_bits = bits;
+        min_error = error;
+        min_coeffs = qb;
+        break;
+    end
+end
+
+% STEP 5: Calculate final quantized output
+yq = filter(min_coeffs,1,x);
+Yq = fft(yq);
+
+% STEP 6: Plot original and quantized spectra
+N = length(y);
+freq = (0:floor(N/2))*fs/N;
+
+figure;
+plot(freq,abs(Y(1:floor(N/2)+1)));
+hold on;
+plot(freq,abs(Yq(1:floor(N/2)+1)));
+xlabel('Frequency (Hz)');
+ylabel('Magnitude');
+title('Original and Quantized FIR Output');
+legend('Original','Quantized');
+grid on;
+
+% STEP 7: Plot frequency responses
+[H,F] = freqz(b,1,1024,fs);
+[Hq,Fq] = freqz(min_coeffs,1,1024,fs);
+
+figure;
+plot(F,abs(H));
+hold on;
+plot(Fq,abs(Hq),'--');
+plot(f,a,'o');
+xlabel('Frequency (Hz)');
+ylabel('Magnitude');
+title('FIR Filter Frequency Response');
+legend('Original','Quantized','Desired');
+grid on;
+%xlim([0 fs/2]);
+
+% Display minimum required bits
+fprintf('Minimum bits = %d\n',min_bits);
+fprintf('Error = %.4f\n',min_error);
